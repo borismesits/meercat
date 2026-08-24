@@ -13,13 +13,15 @@ class MasterEquationSim():
         self.modes = {}
         self.c_ops = []
 
-    def add_mode(self, name, num_levels, omega0, K4=0, K6=0, N=10, kappa=0, gamma_phi=0):
+    def add_mode(self, name, num_levels, omega0=0, K4=0, K6=0, kappa=0, gamma_phi=0):
 
         self.modes[name] = {'num_levels': num_levels,
                             'omega0': omega0,
                             'K4': K4,
                             'K6': K6,
-                            'kappa': kappa, }
+                            'kappa': kappa,
+                            'gamma_phi': gamma_phi,
+                            'psi0': qt.basis(num_levels, 0)}
 
     def add_cross_Kerr(self, mode1_name, mode2_name, chi=1):
 
@@ -58,20 +60,24 @@ class MasterEquationSim():
 
         return ops
 
-    def simulate(self, t, program, psi0=None):
+    def set_fock_IC(self, mode_name, fock_num):
+        self.modes[mode_name]['psi0'] = qt.basis(self.modes[mode_name]['num_levels'], fock_num)
+
+    def set_coherent_IC(self, mode_name, alpha):
+        self.modes[mode_name]['psi0'] = qt.coherent(self.modes[mode_name]['num_levels'], alpha)
+
+    def simulate(self, t, program):
 
         self.program = program
         self.program.body()
         self.build_TD_H(t)
 
-        if psi0 == None: # if none, just build the ground state
-            sub_ops = []
-            for mode_name in self.modes:
-                sub_op = qt.basis(self.modes[mode_name]['num_levels'], 0)
-                sub_ops.append(sub_op)
-            self.psi0 = qt.tensor(sub_ops)
-        else:
-            self.psi0 = psi0
+        sub_psi0s = [] # build up the initial condition
+        for mode_name in self.modes:
+            sub_psi0 = self.modes[mode_name]['psi0']
+            sub_psi0s.append(sub_psi0)
+        self.psi0 = qt.tensor(sub_psi0s)
+
         qt.settings.auto_tidyup = False
         self.result = qt.mesolve(self.H, self.psi0, t)
         return self.result
