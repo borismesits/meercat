@@ -1,0 +1,4 @@
+*.pyc
+.idea/
+*.dat
+meercat.egg-info/
