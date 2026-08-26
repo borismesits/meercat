@@ -15,13 +15,11 @@ class Program():
         self.sequence_dict[self.pulse_num_counter]['start'] = self.time_counter + t
         self.pulse_num_counter += 1
         self.last_pulse_counter = np.max([self.last_pulse_counter, self.pulse_dict[pulse_name]['length']+t])
-        print(self.time_counter)
 
-    def delay(self, time=0):
+    def delay(self, t=0):
         self.time_counter += self.last_pulse_counter
         self.last_pulse_counter = 0
-        self.time_counter += time
-        print(self.time_counter)
+        self.time_counter += t
         pass
 
     def add_pulse_to_library(self, name, op, length, ramp, freq, phase, stark_op=None):

@@ -78,6 +78,12 @@ class MasterEquationSim():
             sub_psi0s.append(sub_psi0)
         self.psi0 = qt.tensor(sub_psi0s)
 
+        self.c_ops = []
+        for mode_name in self.modes:
+            op = self.modes[mode_name]['kappa']
+            if self.modes[mode_name]['kappa'] > 0:
+                se
+
         qt.settings.auto_tidyup = False
         self.result = qt.mesolve(self.H, self.psi0, t)
         return self.result

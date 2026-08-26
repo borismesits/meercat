@@ -4,6 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 from meercat.physics.JJ import *
+import qutip as qt
+import matplotlib as mpl
+mpl.use('Qt5Agg')
+
+F0 = 4.97e9
+L_UNIT = 3.29e-8
+C_UNIT = 3.9e-15
+E_UNIT = 3.29e-24
 
 class SNAILresonator():
     '''
@@ -65,18 +73,13 @@ class SNAILresonator():
             elif self.Ic_large_area == None:
                 self.Ic_large_area = self.Ic_small_area / self.alpha
 
-            f0 = 4.97e9
-            Lunit = 3.29e-8
-            Cunit = 3.9e-15
-            Eunit = 3.29e-24
-
             # LEFT BRANCH ELEMENTS
-            J0 = J(ic=Ic_to_Ej(self.Ic_small_area) / Eunit, order=self.order, name='J0') # NINA Ic is really Ej. dimensionless units are for nerds
+            J0 = J(ic=Ic_to_Ej(self.Ic_small_area) / E_UNIT, order=self.order, name='J0') # NINA Ic is really Ej. dimensionless units are for nerds
             left_elements = [J0]
 
             # RIGHT BRANCH ELEMENTS
-            J1 = J(ic=Ic_to_Ej(self.Ic_large_area) / Eunit, order=self.order, name='J1')
-            J2 = J(ic=Ic_to_Ej(self.Ic_large_area), order=self.order, name='J2')
+            J1 = J(ic=Ic_to_Ej(self.Ic_large_area) / E_UNIT, order=self.order, name='J1')
+            J2 = J(ic=Ic_to_Ej(self.Ic_large_area) / E_UNIT, order=self.order, name='J2')
             right_elements = [J1, J2]
 
             # DEFINES THE SNAIL AS A LOOP INSTANCE
@@ -86,135 +89,193 @@ class SNAILresonator():
                          name='SNAIL')
 
             snail.Nloops = self.array_num
-            snail.Lstray.L0 = self.L / Lunit
+            snail.Lstray.L0 = self.L / L_UNIT
 
             # DEFINES A SNAIL PARAMETRIC AMPLIFIER BY SHUNTING THE SNAIL WITH A CAPACITOR
             self.spa = Nlosc(snail)
-            self.spa.C = self.C / Cunit
+            self.spa.C = self.C / C_UNIT
             self.Npoints = len(self.spa.nlind.flux)
 
-    def get_H0_at_flux(self, phi):
-        self.try_to_build_model()
+    def get_info_at_flux(self, phi, plot_gns_vs_flux=False, plot_Ns=None):
 
+        phis = self.spa.nlind.flux
 
+        omega = np.interp(phi, phis, self.spa.omega * F0 * 2 * np.pi)
+        g3 = np.interp(phi, phis, self.spa.gn[0] * F0 * 2 * np.pi)
+        g4 = np.interp(phi, phis, self.spa.gn[1] * F0 * 2 * np.pi)
+        g5 = np.interp(phi, phis, self.spa.gn[2] * F0 * 2 * np.pi)
+        g6 = np.interp(phi, phis, self.spa.gn[3] * F0 * 2 * np.pi)
+        g7 = np.interp(phi, phis, self.spa.gn[4] * F0 * 2 * np.pi)
+        g8 = np.interp(phi, phis, self.spa.gn[5] * F0 * 2 * np.pi)
 
-    def get_gs_at_flux(self, phi):
-        pass
+        if plot_gns_vs_flux:
+            fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(8, 3))
+            axs[0].plot(self.spa.nlind.flux / 2 / np.pi, self.spa.omega * F0)
+            axs[0].set_xlabel(r'$\bar{\varphi}_\mathrm{e}/2\pi$')
+            axs[0].set_ylabel(r'$\omega$', rotation=0, labelpad=10)
+            axs[0].grid()
 
+            Npoints = len(self.spa.nlind.flux)
 
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[0][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g3')
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[1][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g4')
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[2][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g5')
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[3][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g6')
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[4][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g7')
+            axs[1].semilogy(self.spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(self.spa.gn[5][Npoints // 2:3 * Npoints // 4]) * F0,
+                            label='g8')
+            axs[1].legend()
+            axs[1].set_ylim([1e-5, 1e9])
+            axs[1].set_xlabel('Relative flux')
+            axs[1].set_ylabel('Nonlinearity (Hz)')
 
+            plt.plot([phi / 2 / np.pi, phi / 2 / np.pi],
+                     [1e-2, 3e10], 'k--')
+            plt.grid()
+            plt.show()
 
+        if plot_Ns != None:
+            Ns = plot_Ns
+            s = qt.destroy(Ns)
+            H0 = omega * s.dag() * s + g3 * (s.dag() + s) ** 3 + g4 * (s.dag() + s) ** 4 + g5 * (s.dag() + s) ** 5 + g6 * (s.dag() + s) ** 6 + g7 * (s.dag() + s) ** 7 + g8 * (s.dag() + s) ** 8
 
+            fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(6, 2.5), dpi=200)
+            axs[0].plot(np.diff(H0.eigenstates()[0][0:Ns // 2]) / (2 * np.pi * 1e9), 'o-')
+            axs[0].set_ylabel('Transition Energies (GHz)')
+            axs[0].grid()
+            axs[0].set_xlabel('Photon number')
+            # axs[0].set_ylim([0, omega[i]*2])
 
+            axs[1].plot(np.diff(np.diff(H0.eigenstates()[0][0:Ns // 2])) / (2 * np.pi * 1e6), 'o-')
+            axs[1].set_ylabel('Anaharmonicity (MHz)')
+            axs[1].grid()
+            axs[1].set_xlabel('Photon number')
+            # axs[1].set_ylim([-12*g4[i]*2, 12*g4[i]*2])
+            fig.tight_layout()
+            plt.show()
 
-def evaluate_design(L, C, alpha, Ic, M, i, nbar0=3, gain=10, g_Delta=0.1, plot=True, Ns=100):
-    # default unit values
-    f0 = 4.97e9
-    Lunit = 3.29e-8
-    Cunit = 3.9e-15
-    Eunit = 3.29e-24
+        return omega, g3, g4, g5, g6, g7, g8
 
-    hbar = 1.0545718e-34
-    e = 1.60218e-19
-    phi0 = np.pi * hbar / e  # this is the unreduced flux quantum, needed for next expression
-    EJ = Ic * phi0 / (2 * np.pi)
+if False:
+    def evaluate_design(L, C, alpha, Ic, M, i, nbar0=3, gain=10, g_Delta=0.1, plot=True, Ns=100):
+        # default unit values
+        f0 = 4.97e9
+        Lunit = 3.29e-8
+        Cunit = 3.9e-15
+        Eunit = 3.29e-24
 
-    order = 9
-    # LEFT BRANCH ELEMENTS
-    J0 = J(ic=EJ / Eunit, order=order, name='J0')
-    left_elements = [J0]
+        hbar = 1.0545718e-34
+        e = 1.60218e-19
+        phi0 = np.pi * hbar / e  # this is the unreduced flux quantum, needed for next expression
+        EJ = Ic * phi0 / (2 * np.pi)
 
-    # RIGHT BRANCH ELEMENTS
-    J1 = J(ic=EJ / alpha / Eunit, order=order, name='J1')
-    J2 = J(ic=EJ / alpha / Eunit, order=order, name='J2')
-    right_elements = [J1, J2]
+        order = 9
+        # LEFT BRANCH ELEMENTS
+        J0 = J(ic=EJ / Eunit, order=order, name='J0')
+        left_elements = [J0]
 
-    # DEFINES THE SNAIL AS A LOOP INSTANCE
-    snail = loop(left_branch=left_elements,
-                 right_branch=right_elements,
-                 stray_inductance=True,
-                 name='SNAIL')
+        # RIGHT BRANCH ELEMENTS
+        J1 = J(ic=EJ / alpha / Eunit, order=order, name='J1')
+        J2 = J(ic=EJ / alpha / Eunit, order=order, name='J2')
+        right_elements = [J1, J2]
 
-    snail.Nloops = M
-    snail.Lstray.L0 = L_HFSS / Lunit
+        # DEFINES THE SNAIL AS A LOOP INSTANCE
+        snail = loop(left_branch=left_elements,
+                     right_branch=right_elements,
+                     stray_inductance=True,
+                     name='SNAIL')
 
-    # DEFINES A SNAIL PARAMETRIC AMPLIFIER BY SHUNTING THE SNAIL WITH A CAPACITOR
-    spa = Nlosc(snail)
-    spa.C = C_HFSS / Cunit
+        snail.Nloops = M
+        snail.Lstray.L0 = L_HFSS / Lunit
 
-    Npoints = len(spa.nlind.flux)
+        # DEFINES A SNAIL PARAMETRIC AMPLIFIER BY SHUNTING THE SNAIL WITH A CAPACITOR
+        spa = Nlosc(snail)
+        spa.C = C_HFSS / Cunit
 
-    omega = spa.omega[Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g3 = spa.gn[0][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g4 = spa.gn[1][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g5 = spa.gn[2][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g6 = spa.gn[3][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g7 = spa.gn[4][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g8 = spa.gn[5][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g9 = spa.gn[6][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
-    g10 = spa.gn[7][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        Npoints = len(spa.nlind.flux)
 
-    if plot:
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(8, 3))
-        axs[0].plot(spa.nlind.flux / 2 / np.pi, spa.omega * f0)
-        axs[0].set_xlabel(r'$\bar{\varphi}_\mathrm{e}/2\pi$')
-        axs[0].set_ylabel(r'$\omega$', rotation=0, labelpad=10)
-        axs[0].grid()
+        omega = spa.omega[Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g3 = spa.gn[0][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g4 = spa.gn[1][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g5 = spa.gn[2][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g6 = spa.gn[3][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g7 = spa.gn[4][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g8 = spa.gn[5][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g9 = spa.gn[6][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
+        g10 = spa.gn[7][Npoints // 2:3 * Npoints // 4] * f0 * 2 * np.pi
 
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g3) / (2 * np.pi), label='g3')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g4) / (2 * np.pi), label='g4')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g5) / (2 * np.pi), label='g5')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g6) / (2 * np.pi), label='g6')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g7) / (2 * np.pi), label='g7')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g8) / (2 * np.pi), label='g8')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g9) / (2 * np.pi), label='g9')
-        axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g10) / (2 * np.pi),
-                        label='g10')
-        axs[1].legend()
-        axs[1].set_ylim([1e-5, 1e9])
-        axs[1].set_xlabel('Relative flux')
-        axs[1].set_ylabel('Nonlinearity (Hz)')
+        if plot:
+            fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(8, 3))
+            axs[0].plot(spa.nlind.flux / 2 / np.pi, spa.omega * f0)
+            axs[0].set_xlabel(r'$\bar{\varphi}_\mathrm{e}/2\pi$')
+            axs[0].set_ylabel(r'$\omega$', rotation=0, labelpad=10)
+            axs[0].grid()
 
-        plt.plot([spa.nlind.flux[Npoints // 2 + i] / 2 / np.pi, spa.nlind.flux[Npoints // 2 + i] / 2 / np.pi],
-                 [1e-2, 3e10], 'k--')
-        plt.grid()
-        plt.show()
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g3) / (2 * np.pi), label='g3')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g4) / (2 * np.pi), label='g4')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g5) / (2 * np.pi), label='g5')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g6) / (2 * np.pi), label='g6')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g7) / (2 * np.pi), label='g7')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g8) / (2 * np.pi), label='g8')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g9) / (2 * np.pi), label='g9')
+            axs[1].semilogy(spa.nlind.flux[Npoints // 2:3 * Npoints // 4] / 2 / np.pi, np.abs(g10) / (2 * np.pi),
+                            label='g10')
+            axs[1].legend()
+            axs[1].set_ylim([1e-5, 1e9])
+            axs[1].set_xlabel('Relative flux')
+            axs[1].set_ylabel('Nonlinearity (Hz)')
 
-        print(spa.nlind.flux[i] / 2 / np.pi)
+            plt.plot([spa.nlind.flux[Npoints // 2 + i] / 2 / np.pi, spa.nlind.flux[Npoints // 2 + i] / 2 / np.pi],
+                     [1e-2, 3e10], 'k--')
+            plt.grid()
+            plt.show()
 
-        print(snail.Lstray.L0 * Lunit)
-        print(spa.C * Cunit)
+            print(spa.nlind.flux[i] / 2 / np.pi)
 
-        print(phi0 / Ic)
+            print(snail.Lstray.L0 * Lunit)
+            print(spa.C * Cunit)
 
-    s = destroy(Ns)
+            print(phi0 / Ic)
 
-    s_classical = np.linspace(-100, 100, 1001)
+        s = destroy(Ns)
 
-    H0 = omega[i] * s.dag() * s + g3[i] * (s.dag() + s) ** 3 + g4[i] * (s.dag() + s) ** 4 + g5[i] * (s.dag() + s) ** 5 + \
-         g6[i] * (s.dag() + s) ** 6 + g7[i] * (s.dag() + s) ** 7 + g8[i] * (s.dag() + s) ** 8 + g9[i] * (
-                     s.dag() + s) ** 9 + g10[i] * (s.dag() + s) ** 10
+        s_classical = np.linspace(-100, 100, 1001)
 
-    H_classical = omega[i] * s_classical ** 2 + g3[i] * s_classical ** 3 + g4[i] * s_classical ** 4 + g5[
-        i] * s_classical ** 5 + g6[i] * s_classical ** 6 + g7[i] * s_classical ** 7 + g8[i] * s_classical ** 8 + g9[
-                      i] * s_classical ** 9 + g10[i] * s_classical ** 10
+        H0 = omega[i] * s.dag() * s + g3[i] * (s.dag() + s) ** 3 + g4[i] * (s.dag() + s) ** 4 + g5[i] * (s.dag() + s) ** 5 + \
+             g6[i] * (s.dag() + s) ** 6 + g7[i] * (s.dag() + s) ** 7 + g8[i] * (s.dag() + s) ** 8 + g9[i] * (
+                         s.dag() + s) ** 9 + g10[i] * (s.dag() + s) ** 10
 
-    # H0 = omega[i]*s.dag()*s + g3[i]*(s.dag() + s)**3 + g4[i]*(s.dag()*s.dag()*s*s)
+        H_classical = omega[i] * s_classical ** 2 + g3[i] * s_classical ** 3 + g4[i] * s_classical ** 4 + g5[
+            i] * s_classical ** 5 + g6[i] * s_classical ** 6 + g7[i] * s_classical ** 7 + g8[i] * s_classical ** 8 + g9[
+                          i] * s_classical ** 9 + g10[i] * s_classical ** 10
 
-    if plot:
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(6, 2.5), dpi=200)
-        axs[0].plot(np.diff(H0.eigenstates()[0][0:Ns // 2]) / (2 * np.pi * 1e9), 'o-')
-        axs[0].set_ylabel('Transition Energies (GHz)')
-        axs[0].grid()
-        axs[0].set_xlabel('Photon number')
-        # axs[0].set_ylim([0, omega[i]*2])
+        # H0 = omega[i]*s.dag()*s + g3[i]*(s.dag() + s)**3 + g4[i]*(s.dag()*s.dag()*s*s)
 
-        axs[1].plot(np.diff(np.diff(H0.eigenstates()[0][0:Ns // 2])) / (2 * np.pi * 1e6), 'o-')
-        axs[1].set_ylabel('Anaharmonicity (MHz)')
-        axs[1].grid()
-        axs[1].set_xlabel('Photon number')
-        # axs[1].set_ylim([-12*g4[i]*2, 12*g4[i]*2])
-        fig.tight_layout()
-        plt.show()
+        if plot:
+            fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(6, 2.5), dpi=200)
+            axs[0].plot(np.diff(H0.eigenstates()[0][0:Ns // 2]) / (2 * np.pi * 1e9), 'o-')
+            axs[0].set_ylabel('Transition Energies (GHz)')
+            axs[0].grid()
+            axs[0].set_xlabel('Photon number')
+            # axs[0].set_ylim([0, omega[i]*2])
 
-    return spa, omega[i], g3[i], g4[i], g5[i], g6[i]
+            axs[1].plot(np.diff(np.diff(H0.eigenstates()[0][0:Ns // 2])) / (2 * np.pi * 1e6), 'o-')
+            axs[1].set_ylabel('Anaharmonicity (MHz)')
+            axs[1].grid()
+            axs[1].set_xlabel('Photon number')
+            # axs[1].set_ylim([-12*g4[i]*2, 12*g4[i]*2])
+            fig.tight_layout()
+            plt.show()
+
+        return spa, omega[i], g3[i], g4[i], g5[i], g6[i]
+
+snailres = SNAILresonator()
+snailres.define_large_area_Ic(0.1e-6)
+snailres.define_small_area_Ic(0.02e-6)
+snailres.try_to_build_model()
+omega, g3, g4, g5, g6, g7, g8 = snailres.get_info_at_flux(0.4, plot_gns_vs_flux=True, plot_Ns=100)
