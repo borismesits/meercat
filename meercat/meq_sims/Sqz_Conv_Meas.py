@@ -1,4 +1,5 @@
 from meercat.simulators.meq import MasterEquationSim
+from meercat.simulators.waveform import *
 from meercat.simulators.meq_program import Program
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,37 +9,40 @@ import matplotlib as mpl
 mpl.use('Qt5Agg')
 from tqdm.contrib import itertools
 
+# TODO BROKEN BY UPDATE
+
 class Sqz_Disp_Meas(Program):
 
     def __init__(self):
         super().__init__()
 
     def body(self):
-        self.delay(time=0.1)
+        super().body()
+        self.delay(t=0.1)
         self.play_arb_pulse('DISP_O')
         self.delay()
         self.play_arb_pulse('CONV_O_S')
 
-K4 = 1 * 2 * np.pi
-
-sim = MasterEquationSim()
-sim.add_mode('Qubit', 3)
-sim.add_mode('Readout', 20)
-sim.add_mode('SNAIL', 20, K4=K4)
-sim.add_mode('Output', 20)
-q, r, s, o = sim.build_H0()
-
-DISP_O_eps = 20
-g4 = 0.01 * 2 * np.pi
-DISP_SUBH_eta = 4
-
-g3 = 1 * 2 * np.pi
-SQZ_eta = 1
-
-CONV_O_S_eta = 1.5
-
 # demo sequence
-if True:
+if False:
+    K4 = 1 * 2 * np.pi
+
+    sim = MasterEquationSim()
+    sim.add_mode('Qubit', 3)
+    sim.add_mode('Readout', 20)
+    sim.add_mode('SNAIL', 20, K4=K4)
+    sim.add_mode('Output', 20)
+    q, r, s, o = sim.build_H0()
+
+    DISP_O_eps = 20
+    g4 = 0.01 * 2 * np.pi
+    DISP_SUBH_eta = 4
+
+    g3 = 1 * 2 * np.pi
+    SQZ_eta = 1
+
+    CONV_O_S_eta = 1.5
+
     prog = Sqz_Disp_Meas()
     prog.add_pulse_to_library('SUBH_S_G4', 6 * DISP_SUBH_eta ** 3 * g4 * s, 0.05, 0.001, 0, 0)
     prog.add_pulse_to_library('DISP_O', DISP_O_eps * o, 0.1, 0.01, 0, 0)
@@ -50,7 +54,7 @@ if True:
 
     t = np.linspace(0, 0.5, 1001)
     qt.settings.auto_tidyup = False
-    result = sim.simulate(t, prog)
+    result = sim.simulate(t, prog, [])
 
     plot_expect_with_variance(3, t, [q+q.dag(), 1j*q-1j*q.dag(), q.dag()*q], ['xq', 'pq', 'nq'], result.states)
     plot_expect_with_variance(20, t, [r + r.dag(), 1j * r - 1j * r.dag(), r.dag() * r], ['xr', 'pr', 'nr'],
@@ -81,7 +85,7 @@ if False:
 
         t = np.linspace(0, 0.5, 1001)
         qt.settings.auto_tidyup = False
-        result = sim.simulate(t, prog)
+        result = sim.simulate(t, prog, [])
 
         final_o_i[i, j] = qt.expect(o+o.dag(), result.states[-1])
         final_o_q[i, j] = qt.expect(1j*o-1j*o.dag(), result.states[-1])

@@ -2,10 +2,6 @@ import qutip as qt
 import numpy as np
 import matplotlib.pyplot as plt
 
-def tanh_pulse(t, start, length, ramp):
-    return (np.tanh((t - start) / ramp) - np.tanh((t - (start + length)) / ramp)) / 2
-
-
 class MasterEquationSim():
 
     def __init__(self):
@@ -13,15 +9,16 @@ class MasterEquationSim():
         self.modes = {}
         self.c_ops = []
 
-    def add_mode(self, name, num_levels, omega0=0, K4=0, K6=0, kappa=0, gamma_phi=0):
+    def add_mode(self, name, num_levels, omega0=0, K4=0, K6=0, K8=0, kappa=0, gamma_phi=0, fock0=0):
 
         self.modes[name] = {'num_levels': num_levels,
                             'omega0': omega0,
                             'K4': K4,
                             'K6': K6,
+                            'K8': K8,
                             'kappa': kappa,
                             'gamma_phi': gamma_phi,
-                            'psi0': qt.basis(num_levels, 0)}
+                            'psi0': qt.basis(num_levels, fock0)}
 
     def add_cross_Kerr(self, mode1_name, mode2_name, chi=1):
 
@@ -35,7 +32,7 @@ class MasterEquationSim():
         self.num_modes = len(self.modes.keys())
         ops = []
 
-        for mode_name in self.modes:
+        for mode_name in self.modes: #this builds up a hilbert space with arbitrary number of subspaces
             sub_ops = []
             for mode_name_2 in self.modes:
                 if mode_name == mode_name_2:
@@ -50,13 +47,14 @@ class MasterEquationSim():
 
             op = self.modes[mode_name]['op']
             omega0 = self.modes[mode_name]['omega0']
-            K4 = self.modes[mode_name]['omega0']
-            K6 = self.modes[mode_name]['omega0']
+            K4 = self.modes[mode_name]['K4']
+            K6 = self.modes[mode_name]['K6']
+            K8 = self.modes[mode_name]['K8']
 
             try:
-                self.H0 += omega0 + op.dag() * op + K4 * op.dag() * op.dag() * op * op + K6 * op.dag() * op.dag() * op.dag() * op * op * op
+                self.H0 += omega0*op.dag() * op + K4 * op.dag()**2 * op**2 + K6 * op.dag()**3 * op**3 + K8 * op.dag()**4 * op**4
             except:
-                self.H0 = omega0 + op.dag() * op + K4 * op.dag() * op.dag() * op * op + K6 * op.dag() * op.dag() * op.dag() * op * op * op
+                self.H0 = omega0*op.dag() * op + K4 * op.dag()**2 * op**2 + K6 * op.dag()**3 * op**3 + K8 * op.dag()**4 * op**4
 
         return ops
 
@@ -66,7 +64,7 @@ class MasterEquationSim():
     def set_coherent_IC(self, mode_name, alpha):
         self.modes[mode_name]['psi0'] = qt.coherent(self.modes[mode_name]['num_levels'], alpha)
 
-    def simulate(self, t, program):
+    def simulate(self, t, program, c_ops):
 
         self.program = program
         self.program.body()
@@ -78,14 +76,13 @@ class MasterEquationSim():
             sub_psi0s.append(sub_psi0)
         self.psi0 = qt.tensor(sub_psi0s)
 
-        self.c_ops = []
-        for mode_name in self.modes:
-            op = self.modes[mode_name]['kappa']
-            if self.modes[mode_name]['kappa'] > 0:
-                se
+        # for mode_name in self.modes:
+        #     op = self.modes[mode_name]['kappa']
+        #     if self.modes[mode_name]['kappa'] > 0:
+        #         se
 
         qt.settings.auto_tidyup = False
-        self.result = qt.mesolve(self.H, self.psi0, t)
+        self.result = qt.mesolve(self.H, self.psi0, t, c_ops)
         return self.result
 
     def build_TD_H(self, t):
@@ -100,11 +97,12 @@ class MasterEquationSim():
 
         for pulse_num in self.program.sequence_dict:
             pulse = self.program.sequence_dict[pulse_num]
-            envelope = tanh_pulse(t, pulse['start'], pulse['length'], pulse['ramp']) * np.exp(-1j*(pulse['freq']*t+pulse['phase']))
+            pulse_waveform = pulse['waveform']
+            envelope = pulse['ampl']*pulse_waveform.return_waveform(t, pulse['start'], pulse['waveform'].length) * np.exp(-1j*(pulse['freq']*t+pulse['phase']))
             op = pulse['op']
-            stark_op = pulse['stark_op']
+            stark_op = None
 
-            if np.max(np.abs(op.full()))>0: # something breaks when adding zero operators to TD solver, so just check here
+            if np.max(np.abs(op.full())) > 0: # something breaks when adding zero operators to TD solver, so just check here
                 H_td = [op.dag(), envelope]
                 H_td_c = [op, np.conjugate(envelope)]
 
@@ -112,13 +110,17 @@ class MasterEquationSim():
                 self.H.append(H_td_c)
 
                 if stark_op != None:
-                    H_td_stark = [stark_op, np.abs(envelope)]
+                    H_td_stark = [stark_op, np.abs(envelope)**2]
                     self.H.append(H_td_stark)
 
+    def plot_transitions_for_modes(self):
+        pass # TODO
+
 if __name__ == '__main__':
+
     sim = MasterEquationSim()
-    sim.add_mode('Amplifier', 3, 0)
-    sim.add_mode('Output', 3, 0)
-    sim.build_H0()
+    sim.add_mode('Amplifier', 3)
+    sim.add_mode('Output', 3)
+    a, o = sim.build_H0()
     sim.add_cross_Kerr('Amplifier', 'Output', chi=1)
 

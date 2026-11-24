@@ -4,11 +4,8 @@ def RN2Lj(RN):
     e = 1.6e-19
     Delta = 180e-6 * e
     hbar = 6.63e-34 / (2 * np.pi)
-
     Lj = hbar * RN / (np.pi * Delta)
-
     return Lj
-
 
 def RN2Ic(RN):
     Phi0 = 2.067e-15
@@ -17,4 +14,4 @@ def RN2Ic(RN):
     return phi0 / Lj
 
 
-print(RN2Ic(3000-180))
+print(RN2Ic(55000/10)/RN2Ic(18000/20))
